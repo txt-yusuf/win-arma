@@ -305,12 +305,19 @@ namespace WinArma
 
             // Add quick access to Win-Arma settings if user searches for "ayar", "settings"
             var trimmed = text.Trim().ToLowerInvariant();
-            if (trimmed.Contains("ayar") || trimmed.Contains("setting") || trimmed.Contains("konfig"))
+            // "win-arma", "winarma", "win arma", "arma" or a 4+ char piece of it ("win" alone stays free for Windows apps)
+            var compact = trimmed.Replace("-", "").Replace(" ", "");
+            bool nameMatch = compact.Length >= 4 && "winarma".Contains(compact, StringComparison.Ordinal);
+            bool settingsMatch = trimmed.Contains("ayar") || trimmed.Contains("setting") || trimmed.Contains("konfig");
+
+            if (nameMatch || settingsMatch)
             {
                 results.Insert(0, new SearchResultItem
                 {
-                    Title = "Win-Arma Ayarları",
-                    Subtitle = "Kısayol, arama motoru, tema ve modül ayarlarını aç",
+                    Title = settingsMatch ? "Win-Arma Ayarları" : "Win-Arma",
+                    Subtitle = settingsMatch
+                        ? "Kısayol, arama motoru, tema ve modül ayarlarını aç"
+                        : "Çalışıyor — ayarları açmak için Enter",
                     Category = SearchResultCategory.SystemCommand,
                     IconSymbol = "⚙️",
                     Score = 990,

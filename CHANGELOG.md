@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 #### ✨ Added
+- **Win-Arma entry in the search bar** — typing `win-arma`, `winarma` or `arma` shows Win-Arma itself; Enter opens its settings
 - **Snippet editor** — add, edit and delete text snippets from Settings → Metin Kısayolları (multi-line content, inline validation)
 
 #### 🐛 Fixed
