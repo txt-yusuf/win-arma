@@ -141,7 +141,15 @@ namespace WinArma.Services
                 return (left, isPercent);
             }
 
-            private static bool StartsOperand(Token t) => t.Type is T.Num or T.LP or T.Id;
+            private static readonly HashSet<string> Functions = new()
+        {
+            "sqrt", "kok", "kök", "abs", "sin", "cos", "tan", "asin", "acos", "atan",
+            "ln", "log", "log2", "exp", "round", "floor", "ceil"
+        };
+
+        public static bool IsFunction(string name) => Functions.Contains(name);
+
+        private static bool StartsOperand(Token t) => t.Type is T.Num or T.LP or T.Id;
 
             // factor := ('-'|'+') factor | power
             private (double Value, bool IsPercent) ParseFactor()
@@ -201,6 +209,12 @@ namespace WinArma.Services
                         var arg = ParseExpression();
                         Expect(T.RP);
                         return Apply(t.Text, arg);
+                    }
+
+                    // "sin 30", "sqrt 16": a function followed directly by its operand
+                    if (IsFunction(t.Text) && Cur.Type is T.Num or T.Id or T.Minus or T.Plus)
+                    {
+                        return Apply(t.Text, ParseFactor().Value);
                     }
 
                     return t.Text switch

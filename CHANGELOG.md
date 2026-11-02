@@ -34,6 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - System commands matched a single typed character (`k` listed Kapat / Kilitle); now exact name or a prefix of 3+ characters
 - A hotkey the system already owns (e.g. Win+Space) left the launcher with no hotkey; it now falls back to Ctrl+Space
 - A slow earlier search could overwrite the results of a newer one
+- Results waited for the Windows Search file index (2-4 s for some queries), so the list lagged behind typing and a quick Enter ran an entry of the previous query. Search is now two-phase: everything from memory (commands, snippets, calculator, apps, windows, web) appears within milliseconds, file hits are added when the index answers
+- Calculator functions work without parentheses too (`sin 30`, `sqrt 16`, `log 1000`)
 - README: `y` prefix is YouTube, and the snippet example no longer lists unsupported `__auto__` markers
 
 ---

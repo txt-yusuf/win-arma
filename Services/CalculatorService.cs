@@ -13,7 +13,9 @@ namespace WinArma.Services
         private static readonly Regex AllowedChars = new(@"^[\p{L}\d\s\+\-\*\/\^\(\)\.,%×÷]+$", RegexOptions.Compiled);
 
         // An expression needs an operator, or a function call like sin(30)
-        private static readonly Regex LooksLikeMath = new(@"[\+\-\*\/\^%×÷]|\p{L}+\s*\(", RegexOptions.Compiled);
+        private static readonly Regex LooksLikeMath = new(
+            @"[\+\-\*\/\^%×÷]|\p{L}+\s*\(|\b(?:sqrt|kok|kök|abs|sin|cos|tan|asin|acos|atan|ln|log2|log|exp|round|floor|ceil)\s+[\d.,]",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         private static readonly Regex HyphenatedNumber = new(@"^\d{3,}(-\d+)+$", RegexOptions.Compiled);
 

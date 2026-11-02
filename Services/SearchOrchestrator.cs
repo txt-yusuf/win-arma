@@ -7,6 +7,9 @@ using WinArma.Models;
 
 namespace WinArma.Services
 {
+    // Two phases: Search() answers from memory in a few milliseconds (commands, snippets, calculator,
+    // apps, windows, web), SearchFilesAsync() adds file hits afterwards. The Windows Search index can take
+    // seconds, and nothing else should wait for it.
     public class SearchOrchestrator
     {
         private readonly AppSearchService _appService = new();
@@ -25,41 +28,11 @@ namespace WinArma.Services
             await _appService.InitializeAsync();
         }
 
-        private async Task<List<SearchResultItem>> SearchScopedAsync(char prefix, string rest, CancellationToken token)
-        {
-            var settings = SettingsService.Instance.Current;
-
-            switch (prefix)
-            {
-                case '>':
-                    return settings.EnableSystemCommands
-                        ? _sysService.MatchCommands(rest, explicitMode: true)
-                        : new List<SearchResultItem>();
-
-                case '?':
-                    return settings.EnableWebSearch && rest.Length > 0
-                        ? _webService.GetWebActions(rest)
-                        : new List<SearchResultItem>();
-
-                default:
-                    if (!settings.EnableFileSearch || rest.Length < 2) return new List<SearchResultItem>();
-                    try
-                    {
-                        var files = await _fileService.SearchAsync(rest, maxResults: settings.MaxResultsCount);
-                        return token.IsCancellationRequested ? new List<SearchResultItem>() : files;
-                    }
-                    catch
-                    {
-                        return new List<SearchResultItem>();
-                    }
-            }
-        }
-
-        public async Task<List<SearchResultItem>> SearchAsync(string query)
+        // Phase 1: everything that does not touch the disk index
+        public List<SearchResultItem> Search(string query)
         {
             _currentCts?.Cancel();
             _currentCts = new CancellationTokenSource();
-            var token = _currentCts.Token;
 
             if (string.IsNullOrWhiteSpace(query))
             {
@@ -71,12 +44,21 @@ namespace WinArma.Services
             var combined = new List<SearchResultItem>();
 
             // Scoped modes: one leading character narrows the search to a single source
-            //   >  system commands   ?  web search   /  files
+            //   >  system commands   ?  web search   /  files (phase 2)
             if (trimmed[0] is '>' or '?' or '/')
             {
-                var scoped = await SearchScopedAsync(trimmed[0], trimmed.Substring(1).Trim(), token);
-                if (token.IsCancellationRequested) return new List<SearchResultItem>();
-                return scoped.OrderByDescending(x => x.Score).Take(settings.MaxResultsCount).ToList();
+                var rest = trimmed.Substring(1).Trim();
+
+                if (trimmed[0] == '>' && settings.EnableSystemCommands)
+                {
+                    combined.AddRange(_sysService.MatchCommands(rest, explicitMode: true));
+                }
+                else if (trimmed[0] == '?' && settings.EnableWebSearch && rest.Length > 0)
+                {
+                    combined.AddRange(_webService.GetWebActions(rest));
+                }
+
+                return Finish(combined);
             }
 
             // 0. Custom quick commands from Settings (e.g. "yt", "proje")
@@ -85,15 +67,13 @@ namespace WinArma.Services
             // 1. Check Snippets (e.g. !mail, !iban, !tarih)
             if (settings.EnableSnippets)
             {
-                var snippets = _snippetService.MatchSnippets(trimmed);
-                combined.AddRange(snippets);
+                combined.AddRange(_snippetService.MatchSnippets(trimmed));
             }
 
             // 2. Check Clipboard History (e.g. "pano", "cb", or content match)
             if (settings.EnableClipboardHistory)
             {
-                var clipboardResults = ClipboardHistoryService.Instance.Search(trimmed);
-                combined.AddRange(clipboardResults);
+                combined.AddRange(ClipboardHistoryService.Instance.Search(trimmed));
             }
 
             // 3. Check Calculator
@@ -109,53 +89,66 @@ namespace WinArma.Services
             // 4. Check System commands
             if (settings.EnableSystemCommands)
             {
-                var sysResults = _sysService.MatchCommands(trimmed);
-                combined.AddRange(sysResults);
+                combined.AddRange(_sysService.MatchCommands(trimmed));
             }
 
             // 5. Search Apps (instant in-memory)
             if (settings.EnableAppSearch)
             {
-                var appResults = _appService.Search(trimmed);
-                combined.AddRange(appResults);
+                combined.AddRange(_appService.Search(trimmed));
             }
 
             // 5b. Open windows (title / app name)
             combined.AddRange(_windowService.Match(trimmed));
 
-            // 6. Search Files asynchronously
-            if (settings.EnableFileSearch)
-            {
-                try
-                {
-                    var fileResults = await _fileService.SearchAsync(trimmed, maxResults: 5);
-                    if (!token.IsCancellationRequested)
-                    {
-                        combined.AddRange(fileResults);
-                    }
-                }
-                catch
-                {
-                    // File search failure should not break overall search
-                }
-            }
-
-            if (token.IsCancellationRequested)
-            {
-                return new List<SearchResultItem>();
-            }
-
-            // 7. Add Web Actions
+            // 6. Add Web Actions
             if (settings.EnableWebSearch)
             {
-                var webResults = _webService.GetWebActions(trimmed);
-                combined.AddRange(webResults);
+                combined.AddRange(_webService.GetWebActions(trimmed));
             }
 
-            return combined
-                .OrderByDescending(x => x.Score)
-                .Take(settings.MaxResultsCount)
-                .ToList();
+            return Finish(combined);
         }
+
+        // Phase 2: file hits. Returns nothing when a newer Search() has started in the meantime.
+        public async Task<List<SearchResultItem>> SearchFilesAsync(string query)
+        {
+            var token = _currentCts?.Token ?? CancellationToken.None;
+            var settings = SettingsService.Instance.Current;
+
+            if (!settings.EnableFileSearch || string.IsNullOrWhiteSpace(query)) return new List<SearchResultItem>();
+
+            var trimmed = query.Trim();
+            int max = 5;
+
+            if (trimmed[0] is '>' or '?') return new List<SearchResultItem>();
+            if (trimmed[0] == '/')
+            {
+                trimmed = trimmed.Substring(1).Trim();
+                max = settings.MaxResultsCount;
+                if (trimmed.Length < 2) return new List<SearchResultItem>();
+            }
+
+            try
+            {
+                var files = await _fileService.SearchAsync(trimmed, maxResults: max);
+                return token.IsCancellationRequested ? new List<SearchResultItem>() : files;
+            }
+            catch
+            {
+                // File search failure should not break overall search
+                return new List<SearchResultItem>();
+            }
+        }
+
+        // Re-ranks phase-1 results together with the late file hits
+        public List<SearchResultItem> Merge(List<SearchResultItem> fast, List<SearchResultItem> files) =>
+            Finish(fast.Concat(files).ToList());
+
+        private static List<SearchResultItem> Finish(List<SearchResultItem> items) =>
+            items
+                .OrderByDescending(x => x.Score)
+                .Take(SettingsService.Instance.Current.MaxResultsCount)
+                .ToList();
     }
 }
