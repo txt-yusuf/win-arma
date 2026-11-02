@@ -20,11 +20,13 @@ namespace WinArma.Views
     public partial class SettingsWindow : Window
     {
         private readonly ObservableCollection<SnippetRow> _snippetRows = new();
+        private readonly ObservableCollection<SnippetRow> _commandRows = new();
 
         public SettingsWindow()
         {
             InitializeComponent();
             SnippetList.ItemsSource = _snippetRows;
+            CommandList.ItemsSource = _commandRows;
             Loaded += SettingsWindow_Loaded;
         }
 
@@ -68,7 +70,10 @@ namespace WinArma.Views
             ClipboardCheckBox.IsChecked = s.EnableClipboardHistory;
             QuickLookCheckBox.IsChecked = s.EnableQuickLook;
             SnippetsCheckBox.IsChecked = s.EnableSnippets;
-            LoadSnippetRows(s.Snippets);
+            WindowSearchCheckBox.IsChecked = s.EnableWindowSearch;
+            UpdateCheckBox.IsChecked = s.CheckForUpdates;
+            LoadRows(_snippetRows, s.Snippets, SnippetErrorText);
+            LoadRows(_commandRows, s.Commands, CommandErrorText);
 
             // Max Results
             SelectComboByTag(MaxResultsCombo, s.MaxResultsCount.ToString());
@@ -77,27 +82,33 @@ namespace WinArma.Views
             SelectComboByTag(ThemeCombo, s.Theme);
         }
 
-        private void LoadSnippetRows(IDictionary<string, string>? snippets)
+        private static void LoadRows(ObservableCollection<SnippetRow> rows, IDictionary<string, string>? source, TextBlock errorText)
         {
-            _snippetRows.Clear();
-            HideSnippetError();
-            if (snippets == null) return;
+            rows.Clear();
+            errorText.Visibility = Visibility.Collapsed;
+            if (source == null) return;
 
-            foreach (var kv in snippets)
+            foreach (var kv in source)
             {
-                _snippetRows.Add(new SnippetRow { Key = kv.Key, Value = kv.Value });
+                rows.Add(new SnippetRow { Key = kv.Key, Value = kv.Value });
             }
         }
 
-        private void AddSnippet_Click(object sender, RoutedEventArgs e)
+        private void AddSnippet_Click(object sender, RoutedEventArgs e) =>
+            AddRow(_snippetRows, SnippetList, "!", SnippetErrorText);
+
+        private void AddCommand_Click(object sender, RoutedEventArgs e) =>
+            AddRow(_commandRows, CommandList, "", CommandErrorText);
+
+        private void AddRow(ObservableCollection<SnippetRow> rows, ItemsControl list, string initialKey, TextBlock errorText)
         {
-            var row = new SnippetRow { Key = "!" };
-            _snippetRows.Add(row);
-            HideSnippetError();
+            var row = new SnippetRow { Key = initialKey };
+            rows.Add(row);
+            errorText.Visibility = Visibility.Collapsed;
 
             Dispatcher.BeginInvoke(new Action(() =>
             {
-                if (SnippetList.ItemContainerGenerator.ContainerFromItem(row) is FrameworkElement container)
+                if (list.ItemContainerGenerator.ContainerFromItem(row) is FrameworkElement container)
                 {
                     container.BringIntoView();
                     var keyBox = FindFirstTextBox(container);
@@ -110,12 +121,12 @@ namespace WinArma.Views
             }), System.Windows.Threading.DispatcherPriority.Loaded);
         }
 
-        private void DeleteSnippet_Click(object sender, RoutedEventArgs e)
+        private void DeleteRow_Click(object sender, RoutedEventArgs e)
         {
             if (sender is FrameworkElement { DataContext: SnippetRow row })
             {
-                _snippetRows.Remove(row);
-                HideSnippetError();
+                if (_snippetRows.Remove(row)) SnippetErrorText.Visibility = Visibility.Collapsed;
+                if (_commandRows.Remove(row)) CommandErrorText.Visibility = Visibility.Collapsed;
             }
         }
 
@@ -131,16 +142,60 @@ namespace WinArma.Views
             return null;
         }
 
-        private void ShowSnippetError(string message)
+        private void ShowSnippetError(string message) => ShowError(SnippetErrorText, message);
+
+        private static void ShowError(TextBlock target, string message)
         {
-            SnippetErrorText.Text = message;
-            SnippetErrorText.Visibility = Visibility.Visible;
-            SnippetErrorText.BringIntoView();
+            target.Text = message;
+            target.Visibility = Visibility.Visible;
+            target.BringIntoView();
         }
 
-        private void HideSnippetError()
+        // Rows -> dictionary for quick commands. Returns null (and shows an inline error) when a row is invalid.
+        private Dictionary<string, string>? BuildCommands()
         {
-            SnippetErrorText.Visibility = Visibility.Collapsed;
+            var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var row in _commandRows)
+            {
+                var key = (row.Key ?? string.Empty).Trim();
+                var target = (row.Value ?? string.Empty).Trim();
+
+                // Untouched new row: drop silently
+                if (key.Length == 0 && target.Length == 0) continue;
+
+                if (key.Length == 0)
+                {
+                    ShowError(CommandErrorText, "Bir komutun adı boş olamaz (örn. yt).");
+                    return null;
+                }
+
+                if (key.Any(char.IsWhiteSpace))
+                {
+                    ShowError(CommandErrorText, $"\"{key}\" boşluk içeremez.");
+                    return null;
+                }
+
+                if (key[0] is '!' or '>' or '?' or '/')
+                {
+                    ShowError(CommandErrorText, $"\"{key}\" ! > ? / ile başlayamaz (bunlar özel önekler).");
+                    return null;
+                }
+
+                if (target.Length == 0 || target.Contains('\n') || target.Contains('\r'))
+                {
+                    ShowError(CommandErrorText, $"\"{key}\" için tek satırlık bir adres, klasör ya da program yazın.");
+                    return null;
+                }
+
+                if (!result.TryAdd(key, target))
+                {
+                    ShowError(CommandErrorText, $"\"{key}\" birden fazla kez tanımlı.");
+                    return null;
+                }
+            }
+
+            return result;
         }
 
         // Rows -> dictionary. Returns null (and shows an inline error) when a row is invalid.
@@ -213,7 +268,10 @@ namespace WinArma.Views
             ClipboardCheckBox.IsChecked = def.EnableClipboardHistory;
             QuickLookCheckBox.IsChecked = def.EnableQuickLook;
             SnippetsCheckBox.IsChecked = def.EnableSnippets;
-            LoadSnippetRows(def.Snippets);
+            WindowSearchCheckBox.IsChecked = def.EnableWindowSearch;
+            UpdateCheckBox.IsChecked = def.CheckForUpdates;
+            LoadRows(_snippetRows, def.Snippets, SnippetErrorText);
+            LoadRows(_commandRows, def.Commands, CommandErrorText);
             SelectComboByTag(MaxResultsCombo, def.MaxResultsCount.ToString());
             SelectComboByTag(ThemeCombo, def.Theme);
         }
@@ -221,28 +279,29 @@ namespace WinArma.Views
         private void SaveButton_Click(object sender, RoutedEventArgs e)
         {
             var snippets = BuildSnippets();
-            if (snippets == null) return;
+            var commands = BuildCommands();
+            if (snippets == null || commands == null) return;
 
-            var current = SettingsService.Instance.Current;
-            var s = new AppSettings
-            {
-                HotkeyModifier = GetSelectedTag(HotkeyCombo, "Alt"),
-                HotkeyKey = current.HotkeyKey,
-                WindowOpacity = current.WindowOpacity,
-                RunAtStartup = StartupCheckBox.IsChecked == true,
-                DefaultSearchEngine = GetSelectedContent(SearchEngineCombo, "Google"),
-                EnableAppSearch = AppSearchCheckBox.IsChecked == true,
-                EnableFileSearch = FileSearchCheckBox.IsChecked == true,
-                EnableWebSearch = WebSearchCheckBox.IsChecked == true,
-                EnableCalculator = CalcCheckBox.IsChecked == true,
-                EnableSystemCommands = SysCmdCheckBox.IsChecked == true,
-                EnableClipboardHistory = ClipboardCheckBox.IsChecked == true,
-                EnableQuickLook = QuickLookCheckBox.IsChecked == true,
-                EnableSnippets = SnippetsCheckBox.IsChecked == true,
-                Snippets = snippets,
-                MaxResultsCount = int.TryParse(GetSelectedTag(MaxResultsCombo, "8"), out int max) ? max : 8,
-                Theme = GetSelectedTag(ThemeCombo, "Dark")
-            };
+            // Start from the stored settings so fields this window does not edit (opacity, hotkey key,
+            // first-run flag, ...) survive the save
+            var s = SettingsService.Instance.Current.Clone();
+            s.HotkeyModifier = GetSelectedTag(HotkeyCombo, "Alt");
+            s.RunAtStartup = StartupCheckBox.IsChecked == true;
+            s.DefaultSearchEngine = GetSelectedContent(SearchEngineCombo, "Google");
+            s.EnableAppSearch = AppSearchCheckBox.IsChecked == true;
+            s.EnableFileSearch = FileSearchCheckBox.IsChecked == true;
+            s.EnableWebSearch = WebSearchCheckBox.IsChecked == true;
+            s.EnableCalculator = CalcCheckBox.IsChecked == true;
+            s.EnableSystemCommands = SysCmdCheckBox.IsChecked == true;
+            s.EnableClipboardHistory = ClipboardCheckBox.IsChecked == true;
+            s.EnableQuickLook = QuickLookCheckBox.IsChecked == true;
+            s.EnableSnippets = SnippetsCheckBox.IsChecked == true;
+            s.EnableWindowSearch = WindowSearchCheckBox.IsChecked == true;
+            s.CheckForUpdates = UpdateCheckBox.IsChecked == true;
+            s.Snippets = snippets;
+            s.Commands = commands;
+            s.MaxResultsCount = int.TryParse(GetSelectedTag(MaxResultsCombo, "8"), out int max) ? max : 8;
+            s.Theme = GetSelectedTag(ThemeCombo, "Dark");
 
             SettingsService.Instance.SaveSettings(s);
             Close();

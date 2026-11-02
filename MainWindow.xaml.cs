@@ -25,11 +25,12 @@ namespace WinArma
         public MainWindow()
         {
             InitializeComponent();
-            Loaded += MainWindow_Loaded;
             Deactivated += MainWindow_Deactivated;
         }
 
-        private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
+        // Runs as soon as the window handle exists, so the launcher can start hidden in the tray
+        // (Loaded would only fire after the first Show)
+        private async void StartUp()
         {
             PositionWindow();
             ApplySettings(SettingsService.Instance.Current);
@@ -81,6 +82,8 @@ namespace WinArma
             {
                 ClipboardHistoryService.Instance.Attach(helper.Handle, hwndSource);
             }
+
+            StartUp();
         }
 
         private void ApplySettings(AppSettings settings)

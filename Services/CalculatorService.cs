@@ -1,6 +1,6 @@
 using System;
-using System.Data;
 using System.Globalization;
+using System.Linq;
 using System.Text.RegularExpressions;
 using System.Windows;
 using WinArma.Models;
@@ -9,7 +9,13 @@ namespace WinArma.Services
 {
     public class CalculatorService
     {
-        private static readonly DataTable _dataTable = new();
+        // Only letters that can be part of a function / constant name reach the parser
+        private static readonly Regex AllowedChars = new(@"^[\p{L}\d\s\+\-\*\/\^\(\)\.,%×÷]+$", RegexOptions.Compiled);
+
+        // An expression needs an operator, or a function call like sin(30)
+        private static readonly Regex LooksLikeMath = new(@"[\+\-\*\/\^%×÷]|\p{L}+\s*\(", RegexOptions.Compiled);
+
+        private static readonly Regex HyphenatedNumber = new(@"^\d{3,}(-\d+)+$", RegexOptions.Compiled);
 
         public SearchResultItem? TryCalculate(string query)
         {
@@ -17,73 +23,23 @@ namespace WinArma.Services
 
             var trimmed = query.Trim();
 
-            // Check if string contains math characters
-            if (!Regex.IsMatch(trimmed, @"^[\d\s\+\-\*\/\^\(\)\.,%]+$") &&
-                !trimmed.StartsWith("sqrt(", StringComparison.OrdinalIgnoreCase))
+            // 1. Unit conversion: "5 km mil", "100 c f", "2 gb to mb"
+            if (UnitConverter.TryConvert(trimmed, out var converted, out var description))
             {
-                return null;
+                return CreateCalculatorResult(converted, description);
             }
 
-            // Must contain at least one operator or digit sequence
-            if (!Regex.IsMatch(trimmed, @"[\+\-\*\/\^%]|\bsqrt\b"))
-            {
-                return null;
-            }
+            // 2. Expression
+            if (!AllowedChars.IsMatch(trimmed) || !LooksLikeMath.IsMatch(trimmed)) return null;
 
-            try
-            {
-                string expression = trimmed.Replace(',', '.');
+            // Dates and phone/order numbers (2024-05-10, 0555-123-45) are not subtractions
+            if (HyphenatedNumber.IsMatch(trimmed)) return null;
+            if (!ExpressionEvaluator.TryEvaluate(trimmed, out double numResult)) return null;
 
-                // Handle percentage (e.g. 50% -> (50/100))
-                expression = Regex.Replace(expression, @"(\d+(\.\d+)?)%", "($1/100)");
+            // No digit grouping, so the copied answer pastes cleanly; keeps small values like 0.001
+            string formatted = Math.Round(numResult, 10).ToString("0.##########", CultureInfo.CurrentCulture);
 
-                // Handle power (e.g. 2^3)
-                if (expression.Contains('^'))
-                {
-                    var match = Regex.Match(expression, @"(\d+(\.\d+)?)\^(\d+(\.\d+)?)");
-                    if (match.Success)
-                    {
-                        double b = double.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
-                        double p = double.Parse(match.Groups[3].Value, CultureInfo.InvariantCulture);
-                        double powResult = Math.Pow(b, p);
-                        expression = expression.Replace(match.Value, powResult.ToString(CultureInfo.InvariantCulture));
-                    }
-                }
-
-                // Handle sqrt
-                if (expression.StartsWith("sqrt(", StringComparison.OrdinalIgnoreCase) && expression.EndsWith(")"))
-                {
-                    var inner = expression.Substring(5, expression.Length - 6);
-                    if (double.TryParse(inner, NumberStyles.Any, CultureInfo.InvariantCulture, out double val))
-                    {
-                        var sqrtResult = Math.Sqrt(val);
-                        return CreateCalculatorResult(sqrtResult.ToString("G", CultureInfo.CurrentCulture), expression);
-                    }
-                }
-
-                var result = _dataTable.Compute(expression, null);
-                // Convert the boxed number directly: round-tripping through ToString() + invariant parse
-                // read "2,5" (tr-TR) as 25
-                if (result is IConvertible)
-                {
-                    double numResult = Convert.ToDouble(result, CultureInfo.InvariantCulture);
-                    if (double.IsInfinity(numResult) || double.IsNaN(numResult))
-                    {
-                        return null;
-                    }
-
-                    // No digit grouping, so the copied answer pastes cleanly; keeps small values like 0.001
-                    string formatted = Math.Round(numResult, 10).ToString("0.##########", CultureInfo.CurrentCulture);
-
-                    return CreateCalculatorResult(formatted, trimmed);
-                }
-            }
-            catch
-            {
-                // Not a valid math expression, ignore
-            }
-
-            return null;
+            return CreateCalculatorResult(formatted, trimmed);
         }
 
         private SearchResultItem CreateCalculatorResult(string answer, string originalExpr)

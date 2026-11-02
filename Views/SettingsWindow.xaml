@@ -210,6 +210,38 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!-- Key / value editor row shared by snippets and quick commands -->
+        <DataTemplate x:Key="PairRowTemplate">
+            <Grid Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="110"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBox Grid.Column="0"
+                         Style="{StaticResource SnippetTextBox}"
+                         VerticalAlignment="Top"
+                         Text="{Binding Key, UpdateSourceTrigger=PropertyChanged}"/>
+                <TextBox Grid.Column="1"
+                         Style="{StaticResource SnippetTextBox}"
+                         Margin="8,0,0,0"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         MaxHeight="96"
+                         VerticalScrollBarVisibility="Auto"
+                         Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"/>
+                <Button Grid.Column="2"
+                        Style="{StaticResource SnippetFlatButton}"
+                        Content="✕"
+                        ToolTip="Sil"
+                        Width="28"
+                        Height="28"
+                        Margin="6,0,0,0"
+                        VerticalAlignment="Top"
+                        Click="DeleteRow_Click"/>
+            </Grid>
+        </DataTemplate>
     </Window.Resources>
 
     <!-- Outer Dialog Border with Shadow -->
@@ -354,6 +386,8 @@
                                 <CheckBox x:Name="ClipboardCheckBox" Content="📋 Pano Geçmişi ('pano' veya 'cb' ile son 50 kopyalanan metin)"/>
                                 <CheckBox x:Name="QuickLookCheckBox" Content="👀 Dosya Hızlı Önizleme (macOS Quick Look - Shift+Boşluk ile)"/>
                                 <CheckBox x:Name="SnippetsCheckBox" Content="⚡ Metin Kısayolları ('!mail', '!iban', '!tarih', '!tel' şablonları)"/>
+                                <CheckBox x:Name="WindowSearchCheckBox" Content="🪟 Açık Pencereler ('pencere' yazın ya da başlığını arayın)"/>
+                                <CheckBox x:Name="UpdateCheckBox" Content="🔔 Yeni sürüm bildirimi (GitHub'dan yalnızca son sürüm numarası sorulur)"/>
                             </StackPanel>
                         </Border>
 
@@ -364,40 +398,7 @@
                                 <TextBlock TextWrapping="Wrap" Foreground="#9CA3AF" FontSize="11" Margin="0,2,0,10"
                                            Text="Arama kutusuna kısayolu yazıp Enter'a basınca içerik panoya kopyalanır. Kısayollar ! ile başlar. Yerleşik !tarih, !saat, !bugun ve !guid değiştirilemez."/>
 
-                                <ItemsControl x:Name="SnippetList">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <Grid Margin="0,0,0,8">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="110"/>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                </Grid.ColumnDefinitions>
-                                                <TextBox Grid.Column="0"
-                                                         Style="{StaticResource SnippetTextBox}"
-                                                         VerticalAlignment="Top"
-                                                         Text="{Binding Key, UpdateSourceTrigger=PropertyChanged}"/>
-                                                <TextBox Grid.Column="1"
-                                                         Style="{StaticResource SnippetTextBox}"
-                                                         Margin="8,0,0,0"
-                                                         AcceptsReturn="True"
-                                                         TextWrapping="Wrap"
-                                                         MaxHeight="96"
-                                                         VerticalScrollBarVisibility="Auto"
-                                                         Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"/>
-                                                <Button Grid.Column="2"
-                                                        Style="{StaticResource SnippetFlatButton}"
-                                                        Content="✕"
-                                                        ToolTip="Kısayolu sil"
-                                                        Width="28"
-                                                        Height="28"
-                                                        Margin="6,0,0,0"
-                                                        VerticalAlignment="Top"
-                                                        Click="DeleteSnippet_Click"/>
-                                            </Grid>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
+                                <ItemsControl x:Name="SnippetList" ItemTemplate="{StaticResource PairRowTemplate}"/>
 
                                 <TextBlock x:Name="SnippetErrorText" Foreground="#F87171" FontSize="11" TextWrapping="Wrap"
                                            Margin="0,0,0,6" Visibility="Collapsed"/>
@@ -409,6 +410,28 @@
                                         Padding="8,5"
                                         FontSize="12"
                                         Click="AddSnippet_Click"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Section: Hızlı Komutlar -->
+                        <TextBlock Text="HIZLI KOMUTLAR" FontSize="11" FontWeight="Bold" Foreground="#60A5FA" Margin="0,0,0,8"/>
+                        <Border Background="#202230" CornerRadius="10" Padding="14,10" Margin="0,0,0,16" BorderBrush="#2C2E40" BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock TextWrapping="Wrap" Foreground="#9CA3AF" FontSize="11" Margin="0,2,0,10"
+                                           Text="Bir sözcüğü yazıp Enter'a basınca web adresi, klasör, dosya ya da program açılır. Örnek: yt → https://www.youtube.com, proje → D:\Projeler. %USERPROFILE% gibi ortam değişkenleri kullanılabilir."/>
+
+                                <ItemsControl x:Name="CommandList" ItemTemplate="{StaticResource PairRowTemplate}"/>
+
+                                <TextBlock x:Name="CommandErrorText" Foreground="#F87171" FontSize="11" TextWrapping="Wrap"
+                                           Margin="0,0,0,6" Visibility="Collapsed"/>
+
+                                <Button Style="{StaticResource SnippetFlatButton}"
+                                        Content="＋ Yeni komut ekle"
+                                        Foreground="#60A5FA"
+                                        HorizontalAlignment="Left"
+                                        Padding="8,5"
+                                        FontSize="12"
+                                        Click="AddCommand_Click"/>
                             </StackPanel>
                         </Border>
 

@@ -10,8 +10,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 #### ✨ Added
+- **Scoped search prefixes** — `>` system commands only (`>` alone lists them all), `?` web only, `/` files only
+- **Quick commands** — Settings → Hızlı Komutlar: a keyword opens a URL, file, folder or program (`yt`, `proje`); environment variables such as `%USERPROFILE%` work
+- **Window switcher** — `pencere` lists open windows; any 3+ characters of a title or app name jump to it
+- **Calculator** — new parser: `sin cos tan asin acos atan log log2 ln exp sqrt abs round floor ceil`, `pi`, `e`, `100 + 10%` = 110, modulo, `-2^2`; dates like `2024-05-10` are no longer subtracted
+- **Unit converter** — `5 km mil`, `100 c f`, `2 gb mb`, `3 saat dk`, `60 mph km/h` (length, mass, volume, data, time, speed, temperature; offline)
+- **Safer system commands** — kapat, yeniden başlat and çöpü boşalt ask for confirmation; new `kapatmayı iptal` command
+- **Tray start** — the launcher starts hidden, with a one-time tray hint; update notice (opt-out in Settings, tray → Güncellemeleri denetle) that opens the release page
+- **install.ps1 / uninstall.ps1** shipped in the release zip (installs to `%LOCALAPPDATA%\Programs\WinArma`, Start Menu shortcut, optional startup)
+- **Sharper UI** — PerMonitorV2 DPI manifest, layout rounding and `Display` text formatting on all windows
 - **Win-Arma entry in the search bar** — typing `win-arma`, `winarma` or `arma` shows Win-Arma itself; Enter opens its settings
 - **Snippet editor** — add, edit and delete text snippets from Settings → Metin Kısayolları (multi-line content, inline validation)
+
+#### 🔒 Security
+- Clipboard history is stored encrypted (Windows DPAPI, current user) in `clipboard_history.bin`; the old plain `clipboard_history.json` is imported once and removed
+- Copies marked sensitive by password managers (`ExcludeClipboardContentFromMonitorProcessing`, `CanIncludeInClipboardHistory=0`) are not recorded; snippets copied by Win-Arma are marked the same way
+- The release workflow stamps the app version from the tag (`-p:Version`), so the update check compares against the right number
 
 #### 🐛 Fixed
 - Saving settings reset `WindowOpacity` and `HotkeyKey` to their defaults

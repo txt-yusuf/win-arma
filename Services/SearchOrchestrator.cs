@@ -15,12 +15,44 @@ namespace WinArma.Services
         private readonly CalculatorService _calcService = new();
         private readonly SystemCommandService _sysService = new();
         private readonly SnippetService _snippetService = new();
+        private readonly CustomCommandService _commandService = new();
+        private readonly WindowSearchService _windowService = new();
 
         private CancellationTokenSource? _currentCts;
 
         public async Task InitializeAsync()
         {
             await _appService.InitializeAsync();
+        }
+
+        private async Task<List<SearchResultItem>> SearchScopedAsync(char prefix, string rest, CancellationToken token)
+        {
+            var settings = SettingsService.Instance.Current;
+
+            switch (prefix)
+            {
+                case '>':
+                    return settings.EnableSystemCommands
+                        ? _sysService.MatchCommands(rest, explicitMode: true)
+                        : new List<SearchResultItem>();
+
+                case '?':
+                    return settings.EnableWebSearch && rest.Length > 0
+                        ? _webService.GetWebActions(rest)
+                        : new List<SearchResultItem>();
+
+                default:
+                    if (!settings.EnableFileSearch || rest.Length < 2) return new List<SearchResultItem>();
+                    try
+                    {
+                        var files = await _fileService.SearchAsync(rest, maxResults: settings.MaxResultsCount);
+                        return token.IsCancellationRequested ? new List<SearchResultItem>() : files;
+                    }
+                    catch
+                    {
+                        return new List<SearchResultItem>();
+                    }
+            }
         }
 
         public async Task<List<SearchResultItem>> SearchAsync(string query)
@@ -37,6 +69,18 @@ namespace WinArma.Services
             var settings = SettingsService.Instance.Current;
             var trimmed = query.Trim();
             var combined = new List<SearchResultItem>();
+
+            // Scoped modes: one leading character narrows the search to a single source
+            //   >  system commands   ?  web search   /  files
+            if (trimmed[0] is '>' or '?' or '/')
+            {
+                var scoped = await SearchScopedAsync(trimmed[0], trimmed.Substring(1).Trim(), token);
+                if (token.IsCancellationRequested) return new List<SearchResultItem>();
+                return scoped.OrderByDescending(x => x.Score).Take(settings.MaxResultsCount).ToList();
+            }
+
+            // 0. Custom quick commands from Settings (e.g. "yt", "proje")
+            combined.AddRange(_commandService.Match(trimmed));
 
             // 1. Check Snippets (e.g. !mail, !iban, !tarih)
             if (settings.EnableSnippets)
@@ -75,6 +119,9 @@ namespace WinArma.Services
                 var appResults = _appService.Search(trimmed);
                 combined.AddRange(appResults);
             }
+
+            // 5b. Open windows (title / app name)
+            combined.AddRange(_windowService.Match(trimmed));
 
             // 6. Search Files asynchronously
             if (settings.EnableFileSearch)

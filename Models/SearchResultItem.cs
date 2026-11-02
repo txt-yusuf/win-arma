@@ -13,7 +13,9 @@ namespace WinArma.Models
         SystemCommand,
         Url,
         ClipboardItem,
-        Snippet
+        Snippet,
+        Command,
+        Window
     }
 
     public class SearchResultItem
@@ -38,6 +40,8 @@ namespace WinArma.Models
             SearchResultCategory.Url => "Bağlantı",
             SearchResultCategory.ClipboardItem => "Pano",
             SearchResultCategory.Snippet => "Kısayol",
+            SearchResultCategory.Command => "Komut",
+            SearchResultCategory.Window => "Pencere",
             _ => "Genel"
         };
 
@@ -52,6 +56,8 @@ namespace WinArma.Models
             SearchResultCategory.Url => "#06B6D4",         // Cyan
             SearchResultCategory.ClipboardItem => "#F97316",// Orange
             SearchResultCategory.Snippet => "#14B8A6",     // Teal
+            SearchResultCategory.Command => "#6366F1",     // Indigo
+            SearchResultCategory.Window => "#0EA5E9",      // Sky
             _ => "#6B7280"
         };
     }
