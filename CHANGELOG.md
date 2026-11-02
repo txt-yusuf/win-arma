@@ -35,7 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A hotkey the system already owns (e.g. Win+Space) left the launcher with no hotkey; it now falls back to Ctrl+Space
 - A slow earlier search could overwrite the results of a newer one
 - Results waited for the Windows Search file index (2-4 s for some queries), so the list lagged behind typing and a quick Enter ran an entry of the previous query. Search is now two-phase: everything from memory (commands, snippets, calculator, apps, windows, web) appears within milliseconds, file hits are added when the index answers
-- Calculator functions work without parentheses too (`sin 30`, `sqrt 16`, `log 1000`)
+- Calculator functions work without parentheses and without a space (`sin 30`, `tan45`, `sqrt16`, `log100`)
 - README: `y` prefix is YouTube, and the snippet example no longer lists unsupported `__auto__` markers
 
 ---

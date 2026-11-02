@@ -66,7 +66,16 @@ namespace WinArma.Services
                 {
                     int start = i;
                     while (i < s.Length && char.IsLetter(s[i])) i++;
-                    list.Add(new Token(T.Id, 0, s.Substring(start, i - start).ToLowerInvariant()));
+                    var word = s.Substring(start, i - start).ToLowerInvariant();
+
+                    // "log2(8)": the 2 belongs to the name; "log2" alone / "tan45" stay name + number
+                    if (word == "log" && i + 1 < s.Length && s[i] == '2' && s[i + 1] == '(')
+                    {
+                        word = "log2";
+                        i++;
+                    }
+
+                    list.Add(new Token(T.Id, 0, word));
                     continue;
                 }
 
