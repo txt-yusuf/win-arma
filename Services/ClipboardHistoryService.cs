@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Interop;
@@ -23,6 +24,7 @@ namespace WinArma.Services
 
         private readonly List<ClipboardEntry> _history = new();
         private readonly string _storageFilePath;
+        private readonly string _legacyFilePath;
         private IntPtr _hWnd = IntPtr.Zero;
         private HwndSource? _hwndSource;
         private bool _isListening = false;
@@ -35,8 +37,48 @@ namespace WinArma.Services
             {
                 Directory.CreateDirectory(folder);
             }
-            _storageFilePath = Path.Combine(folder, "clipboard_history.json");
+            _legacyFilePath = Path.Combine(folder, "clipboard_history.json");
+            _storageFilePath = Path.Combine(folder, "clipboard_history.bin");
             LoadHistory();
+        }
+
+        // Password managers and Windows itself mark secrets with these formats ("do not record this")
+        private static readonly string[] ExcludedFormats =
+        {
+            "ExcludeClipboardContentFromMonitorProcessing",
+            "Clipboard Viewer Ignore"
+        };
+
+        // Same marker for text we put on the clipboard ourselves (snippets): the content stays out of the history
+        public static void SetTextPrivate(string text)
+        {
+            var data = new System.Windows.DataObject();
+            data.SetText(text);
+            data.SetData("ExcludeClipboardContentFromMonitorProcessing", new MemoryStream(new byte[] { 1, 0, 0, 0 }));
+            System.Windows.Clipboard.SetDataObject(data, true);
+        }
+
+        private static bool IsMarkedSensitive()
+        {
+            var data = System.Windows.Clipboard.GetDataObject();
+            if (data == null) return false;
+
+            foreach (var format in ExcludedFormats)
+            {
+                if (data.GetDataPresent(format)) return true;
+            }
+
+            // CanIncludeInClipboardHistory = 0 means "keep out of Win+V history"
+            if (data.GetDataPresent("CanIncludeInClipboardHistory"))
+            {
+                if (data.GetData("CanIncludeInClipboardHistory") is MemoryStream ms && ms.Length >= 4)
+                {
+                    var bytes = ms.ToArray();
+                    if (BitConverter.ToInt32(bytes, 0) == 0) return true;
+                }
+            }
+
+            return false;
         }
 
         public void Attach(IntPtr hWnd, HwndSource hwndSource)
@@ -74,6 +116,8 @@ namespace WinArma.Services
 
             try
             {
+                if (IsMarkedSensitive()) return;
+
                 if (System.Windows.Clipboard.ContainsText())
                 {
                     string text = System.Windows.Clipboard.GetText();
@@ -193,11 +237,23 @@ namespace WinArma.Services
             {
                 if (File.Exists(_storageFilePath))
                 {
-                    var json = File.ReadAllText(_storageFilePath);
-                    var items = JsonSerializer.Deserialize<List<ClipboardEntry>>(json);
+                    // DPAPI: only this Windows user can decrypt the file
+                    var plain = ProtectedData.Unprotect(File.ReadAllBytes(_storageFilePath), null, DataProtectionScope.CurrentUser);
+                    var items = JsonSerializer.Deserialize<List<ClipboardEntry>>(plain);
                     if (items != null)
                     {
                         _history.AddRange(items);
+                    }
+                }
+                else if (File.Exists(_legacyFilePath))
+                {
+                    // 1.0.x kept the history as readable JSON: import it once, then drop the plain-text copy
+                    var items = JsonSerializer.Deserialize<List<ClipboardEntry>>(File.ReadAllText(_legacyFilePath));
+                    if (items != null)
+                    {
+                        _history.AddRange(items);
+                        SaveHistory();
+                        if (File.Exists(_storageFilePath)) File.Delete(_legacyFilePath);
                     }
                 }
             }
@@ -208,8 +264,8 @@ namespace WinArma.Services
         {
             try
             {
-                var json = JsonSerializer.Serialize(_history, new JsonSerializerOptions { WriteIndented = true });
-                File.WriteAllText(_storageFilePath, json);
+                var plain = JsonSerializer.SerializeToUtf8Bytes(_history);
+                File.WriteAllBytes(_storageFilePath, ProtectedData.Protect(plain, null, DataProtectionScope.CurrentUser));
             }
             catch { }
         }

@@ -8,6 +8,11 @@
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationIcon>app.ico</ApplicationIcon>
+    <!-- The release workflow overrides this with the pushed tag (-p:Version=1.2.3) -->
+    <Version>1.0.2</Version>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- WPF reads DPI awareness from the manifest; the WinForms analyzer (only used for the tray icon) would route it elsewhere -->
+    <NoWarn>$(NoWarn);WFO0003</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -21,6 +26,9 @@
     <None Update="logo.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <!-- Ship the install / uninstall scripts at the root of the published folder (and so the release zip) -->
+    <None Include="scripts\install.ps1" Link="install.ps1" CopyToPublishDirectory="PreserveNewest" CopyToOutputDirectory="Never" />
+    <None Include="scripts\uninstall.ps1" Link="uninstall.ps1" CopyToPublishDirectory="PreserveNewest" CopyToOutputDirectory="Never" />
   </ItemGroup>
 
 </Project>

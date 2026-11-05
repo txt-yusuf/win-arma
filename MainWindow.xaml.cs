@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
@@ -25,11 +26,12 @@ namespace WinArma
         public MainWindow()
         {
             InitializeComponent();
-            Loaded += MainWindow_Loaded;
             Deactivated += MainWindow_Deactivated;
         }
 
-        private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
+        // Runs as soon as the window handle exists, so the launcher can start hidden in the tray
+        // (Loaded would only fire after the first Show)
+        private async void StartUp()
         {
             PositionWindow();
             ApplySettings(SettingsService.Instance.Current);
@@ -81,6 +83,8 @@ namespace WinArma
             {
                 ClipboardHistoryService.Instance.Attach(helper.Handle, hwndSource);
             }
+
+            StartUp();
         }
 
         private void ApplySettings(AppSettings settings)
@@ -298,10 +302,9 @@ namespace WinArma
 
             if (!_isInitialized) return;
 
-            var results = await _orchestrator.SearchAsync(text);
-
-            // A newer keystroke superseded this search; its results would overwrite the fresher list
-            if (version != _searchVersion) return;
+            // Phase 1 runs synchronously (a few ms): the list always matches what is typed, so a quick
+            // Enter can never run an entry from the previous query
+            var results = _orchestrator.Search(text);
 
             // Add quick access to Win-Arma settings if user searches for "ayar", "settings"
             var trimmed = text.Trim().ToLowerInvariant();
@@ -331,10 +334,31 @@ namespace WinArma
                 });
             }
 
+            ShowResults(results, keepSelection: false);
+
+            // Phase 2: file hits arrive whenever the Windows Search index answers (can take seconds)
+            var files = await _orchestrator.SearchFilesAsync(text);
+            if (version != _searchVersion || files.Count == 0) return;
+
+            ShowResults(_orchestrator.Merge(results, files), keepSelection: true);
+        }
+
+        private void ShowResults(List<SearchResultItem> results, bool keepSelection)
+        {
+            // Late file hits re-rank the list: stay on the entry the user is on if they moved off the top
+            SearchResultItem? previous = keepSelection && ResultsList.SelectedIndex > 0
+                ? ResultsList.SelectedItem as SearchResultItem
+                : null;
+
             if (results.Count > 0)
             {
                 ResultsList.ItemsSource = results;
-                ResultsList.SelectedIndex = 0;
+
+                int index = previous == null
+                    ? 0
+                    : results.FindIndex(r => r.Title == previous.Title && r.Subtitle == previous.Subtitle);
+                ResultsList.SelectedIndex = index < 0 ? 0 : index;
+
                 ResultsList.Visibility = Visibility.Visible;
                 DividerLine.Visibility = Visibility.Visible;
 

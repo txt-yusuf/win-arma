@@ -80,7 +80,8 @@ namespace WinArma.Services
                 {
                     try
                     {
-                        System.Windows.Clipboard.SetText(capturedVal);
+                        // Snippets often hold an IBAN or phone number: keep them out of the clipboard history
+                        ClipboardHistoryService.SetTextPrivate(capturedVal);
                     }
                     catch { }
                 }

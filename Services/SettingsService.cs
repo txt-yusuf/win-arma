@@ -46,6 +46,9 @@ namespace WinArma.Services
                         settings.Snippets = new Dictionary<string, string>(
                             settings.Snippets ?? new Dictionary<string, string>(),
                             StringComparer.OrdinalIgnoreCase);
+                        settings.Commands = new Dictionary<string, string>(
+                            settings.Commands ?? new Dictionary<string, string>(),
+                            StringComparer.OrdinalIgnoreCase);
 
                         // Check actual startup registry status
                         settings.RunAtStartup = CheckStartupRegistry();

@@ -34,9 +34,13 @@
 | 🔍 | Uygulama arama | App search (Start Menu shortcuts) |
 | 📁 | Dosya arama | File search (Windows Search index) |
 | 🌐 | Web arama | Web search — Google, Bing, DDG, Yandex, Brave |
-| 🧮 | Hesap makinesi | Calculator — expressions, sqrt, `^`, `%` |
-| 💻 | Sistem komutları | System commands — kilitle, kapat, uyku, yeniden başlat |
-| 📋 | Pano geçmişi | Clipboard history — last 50 items, `pano` / `cb` trigger |
+| 🧮 | Hesap makinesi | Calculator — `+ - * / ^ %`, `sin cos tan log ln sqrt abs round`, `pi`, `100 + 10%` |
+| 📐 | Birim çevirici | Unit converter — `5 km mil`, `100 c f`, `2 gb mb`, `3 saat dk` (offline) |
+| 💻 | Sistem komutları | System commands — kilitle, kapat, uyku, yeniden başlat (kapat / çöp için onay sorar) |
+| 🪟 | Açık pencereler | Window switcher — `pencere` or any part of a window title |
+| 🚀 | Hızlı komutlar | Custom keywords — `yt` opens a site, `proje` opens a folder (Settings) |
+| 📋 | Pano geçmişi | Clipboard history — last 50 items, encrypted (DPAPI), password-manager copies skipped |
+| 🔔 | Güncelleme | Update notice in the tray (can be turned off) |
 | 👀 | Hızlı önizleme | Quick Look — Shift+Space / F3 for images & text files |
 | ⚡ | Metin kısayolları | Text snippets — `!mail`, `!iban`, `!tel`, `!guid`, `!tarih`… |
 | 🎨 | Temalar | 4 themes: Dark · Midnight · Amoled · Light |
@@ -75,6 +79,10 @@
 | `Shift + Space` veya `F3` | Seçili dosyayı Quick Look ile önizle |
 | `Escape` | Pencereyi kapat |
 | `pano` veya `cb` | Pano geçmişini listele |
+| `> kapat` | Yalnızca sistem komutları (`>` tek başına hepsini listeler) |
+| `? metin` | Yalnızca web araması |
+| `/ metin` | Yalnızca dosya araması |
+| `pencere` | Açık pencereleri listele |
 | `g metin` | Google'da ara |
 | `y metin` | YouTube'da ara |
 | `gh metin` | GitHub'da ara |
@@ -97,6 +105,12 @@
 3. `WinArma.exe` dosyasını çalıştırın / Run `WinArma.exe`
 4. Sistem tepsisinde ikon görünür / App appears in system tray
 5. `Alt + Space` ile başlatın / Press `Alt + Space` to launch
+
+Program tepside gizli başlar. İsterseniz zip içindeki `install.ps1` ile `%LOCALAPPDATA%\Programs\WinArma` altına kurup Başlat menüsü kısayolu ve açılışta başlatma ekleyebilirsiniz (kaldırmak için `uninstall.ps1`):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install.ps1
+```
 
 > **Gereksinim / Requirement:** [.NET 9 Runtime (Windows)](https://dotnet.microsoft.com/download/dotnet/9) yüklü olmalıdır.
 

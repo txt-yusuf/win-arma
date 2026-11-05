@@ -34,6 +34,23 @@ namespace WinArma.Models
             { "!shrug", @"¯\_(ツ)_/¯" }
         };
 
+        // Custom quick commands (Keyword -> URL / file / folder / program)
+        public Dictionary<string, string> Commands { get; set; } = new(StringComparer.OrdinalIgnoreCase)
+        {
+            { "yt", "https://www.youtube.com" },
+            { "github", "https://github.com" },
+            { "indirilenler", @"%USERPROFILE%\Downloads" }
+        };
+
+        // Open window switcher
+        public bool EnableWindowSearch { get; set; } = true;
+
+        // Update notification (asks GitHub for the latest release tag, nothing else is sent)
+        public bool CheckForUpdates { get; set; } = true;
+
+        // True once the "I'm running in the tray" hint has been shown
+        public bool FirstRunHintShown { get; set; } = false;
+
         // UI & Appearance
         public int MaxResultsCount { get; set; } = 8;
         public double WindowOpacity { get; set; } = 0.98;
@@ -41,6 +58,15 @@ namespace WinArma.Models
 
         // Startup
         public bool RunAtStartup { get; set; } = false;
+
+        // Copy with its own dictionaries, so callers can change fields without losing the ones they don't know about
+        public AppSettings Clone()
+        {
+            var copy = (AppSettings)MemberwiseClone();
+            copy.Snippets = new Dictionary<string, string>(Snippets ?? new(), StringComparer.OrdinalIgnoreCase);
+            copy.Commands = new Dictionary<string, string>(Commands ?? new(), StringComparer.OrdinalIgnoreCase);
+            return copy;
+        }
 
         public string GetSearchEngineUrl(string query)
         {
